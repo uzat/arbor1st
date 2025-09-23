@@ -29,9 +29,15 @@ describe('Tree API Endpoints', () => {
       await db('trees').del();
       
       const response = await request(app)
-        .get('/api/v1/trees')
-        .expect(200);
-
+        .get('/api/v1/trees');
+      
+      // Log the error if we get 500
+      if (response.status === 500) {
+        console.error('Error response:', response.body);
+        console.error('Error text:', response.text);
+      }
+      
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.count).toBe(0);
       expect(response.body.data).toEqual([]);
@@ -82,9 +88,14 @@ describe('Tree API Endpoints', () => {
       const response = await request(app)
         .post('/api/v1/trees')
         .set('x-user-id', testUser.id)
-        .send(treeData)
-        .expect(201);
+        .send(treeData);
+      
+      // Log error if we get 500
+      if (response.status === 500) {
+        console.error('POST Error:', response.text);
+      }
 
+      expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
       expect(response.body.data.species).toBe(treeData.species);
       expect(response.body.data.id).toBeDefined();

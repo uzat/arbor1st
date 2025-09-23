@@ -11,6 +11,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
 // Import routes
 import treeRoutes from './routes/trees';
+import authRoutes from './routes/auth';
 
 // Create Express app
 const app: Application = express();
@@ -41,6 +42,7 @@ app.get('/api/v1', (_req: Request, res: Response) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      auth: '/api/v1/auth',
       trees: '/api/v1/trees',
       properties: '/api/v1/properties',
       inspections: '/api/v1/inspections',
@@ -51,6 +53,7 @@ app.get('/api/v1', (_req: Request, res: Response) => {
 });
 
 // API Routes
+app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/trees', treeRoutes);
 
 // Error handling middleware
@@ -75,4 +78,5 @@ app.listen(PORT, () => {
   console.log(`🌳 ArborIQ API running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
 });
