@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArborIQ Architecture Diagrams</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2d3748;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        h2 {
+            color: #4a5568;
+            font-size: 1.8em;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .subtitle {
+            color: #718096;
+            font-size: 1.1em;
+            margin-bottom: 40px;
+        }
+        .diagram-container {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+        }
+        .diagram-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .description {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            color: #4a5568;
+            line-height: 1.6;
+        }
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .tech-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .tech-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+        }
+        .tech-card ul {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 0.95em;
+        }
+        .legend {
+            background: #fff5f5;
+            border: 1px solid #feb2b2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .legend-title {
+            font-weight: 600;
+            color: #c53030;
+            margin-bottom: 10px;
+        }
+        .tree-icon {
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="tree-icon">🌳</span> ArborIQ Technical Architecture</h1>
+        <p class="subtitle">Comprehensive system architecture and technical diagrams for stakeholder reference</p>
+
+        <h2>1. High-Level System Architecture</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">System Overview</div>
+            <div class="mermaid">
+                graph TB
+                    subgraph "Client Layer"
+                        MW[Mobile App<br/>React Native]
+                        WC[Web Console<br/>React/Next.js]
+                        PW[Public Portal<br/>Read-only]
+                    end
+                    
+                    subgraph "API Gateway"
+                        AG[Azure API Management<br/>Rate Limiting, Auth, Routing]
+                    end
+                    
+                    subgraph "Application Layer"
+                        AS[Auth Service<br/>OAuth2/JWT]
+                        CS[Core API Service<br/>Node.js/Express]
+                        RS[Risk Engine<br/>Node.js]
+                        MS[Media Service<br/>Node.js]
+                        NS[Notification Service<br/>Node.js]
+                    end
+                    
+                    subgraph "Integration Layer"
+                        INA[iNaturalist API]
+                        ALA[Atlas Living Australia]
+                        PID[Plant.id API]
+                        BOM[BOM Weather API]
+                        NM[Nearmap API]
+                    end
+                    
+                    subgraph "Data Layer"
+                        PG[(PostgreSQL<br/>+PostGIS)]
+                        RD[(Redis Cache)]
+                        BS[Azure Blob<br/>Storage]
+                    end
+                    
+                    subgraph "Processing Layer"
+                        BG[Background Jobs<br/>BullMQ]
+                        ND[NDVI Processor]
+                        RE[Report Engine<br/>Puppeteer]
+                    end
+                    
+                    MW --> AG
+                    WC --> AG
+                    PW --> AG
+                    
+                    AG --> AS
+                    AG --> CS
+                    AG --> RS
+                    AG --> MS
+                    
+                    CS --> PG
+                    CS --> RD
+                    MS --> BS
+                    RS --> BOM
+                    CS --> INA
+                    CS --> ALA
+                    CS --> PID
+                    WC --> NM
+                    
+                    RS --> NS
+                    CS --> BG
+                    BG --> ND
+                    BG --> RE
+                    ND --> BS
+                    RE --> BS
+                    
+                    classDef client fill:#4299e1,stroke:#2b6cb0,color:#fff
+                    classDef service fill:#48bb78,stroke:#2f855a,color:#fff
+                    classDef data fill:#ed8936,stroke:#c05621,color:#fff
+                    classDef external fill:#9f7aea,stroke:#6b46c1,color:#fff
+                    
+                    class MW,WC,PW client
+                    class AS,CS,RS,MS,NS,BG,ND,RE service
+                    class PG,RD,BS data
+                    class INA,ALA,PID,BOM,NM external
+            </div>
+            <div class="description">
+                <strong>Key Components:</strong> The system follows a microservices architecture with clear separation between client, application, and data layers. External integrations are isolated in their own layer for maintainability.
+            </div>
+        </div>
+
+        <h2>2. Data Flow Architecture</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">Data Flow and Synchronization</div>
+            <div class="mermaid">
+                graph LR
+                    subgraph "Mobile Device"
+                        LC[Local SQLite]
+                        SQ[Sync Queue]
+                        OC[Offline Cache]
+                    end
+                    
+                    subgraph "Sync Process"
+                        CD[Conflict Detection]
+                        CR[Conflict Resolution]
+                        DM[Delta Merge]
+                    end
+                    
+                    subgraph "Backend"
+                        API[REST API]
+                        WS[WebSocket]
+                        EV[Event Bus]
+                    end
+                    
+                    subgraph "Database"
+                        MT[Master Tables]
+                        AL[Audit Log]
+                        SV[Sync Versions]
+                    end
+                    
+                    LC --> SQ
+                    SQ --> CD
+                    CD --> CR
+                    CR --> DM
+                    DM --> API
+                    API --> MT
+                    MT --> AL
+                    MT --> SV
+                    
+                    WS --> EV
+                    EV --> LC
+                    
+                    OC -.->|Fallback| LC
+                    SV -->|Version Check| CD
+                    
+                    classDef mobile fill:#4299e1,stroke:#2b6cb0,color:#fff
+                    classDef sync fill:#48bb78,stroke:#2f855a,color:#fff
+                    classDef backend fill:#ed8936,stroke:#c05621,color:#fff
+                    
+                    class LC,SQ,OC mobile
+                    class CD,CR,DM sync
+                    class API,WS,EV,MT,AL,SV backend
+            </div>
+            <div class="description">
+                <strong>Offline-First Architecture:</strong> Mobile devices maintain local SQLite databases with a sync queue. Changes are synchronized through conflict detection and resolution mechanisms, ensuring data integrity across offline/online states.
+            </div>
+        </div>
+
+        <h2>3. Database Schema</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">Core Database Entities</div>
+            <div class="mermaid">
+                erDiagram
+                    TREE ||--o{ INSPECTION : has
+                    TREE ||--o{ WORK_ORDER : requires
+                    TREE ||--o{ MEDIA : contains
+                    TREE }o--|| PROPERTY : "located in"
+                    PROPERTY ||--o{ ZONE : contains
+                    INSPECTION ||--o{ MEDIA : includes
+                    INSPECTION ||--o{ DEFECT : identifies
+                    WORK_ORDER ||--o{ WORK_LOG : tracks
+                    TREE ||--o{ RISK_ALERT : triggers
+                    DRONE_FLIGHT ||--o{ DRONE_ASSET : produces
+                    TREE ||--o{ DRONE_ASSET : "analyzed by"
+                    
+                    TREE {
+                        uuid id PK
+                        string species
+                        string cultivar
+                        point location
+                        float height
+                        float dbh
+                        string health_status
+                        int risk_rating
+                        string qr_tag
+                        string nfc_tag
+                        jsonb attributes
+                        timestamp created_at
+                        uuid created_by
+                    }
+                    
+                    INSPECTION {
+                        uuid id PK
+                        uuid tree_id FK
+                        uuid inspector_id FK
+                        string inspection_type
+                        jsonb findings
+                        int risk_score
+                        string recommendations
+                        timestamp inspection_date
+                        jsonb weather_conditions
+                    }
+                    
+                    PROPERTY {
+                        uuid id PK
+                        string name
+                        polygon boundary
+                        string owner_type
+                        jsonb metadata
+                        string council_id
+                    }
+                    
+                    WORK_ORDER {
+                        uuid id PK
+                        uuid tree_id FK
+                        string work_type
+                        string priority
+                        string status
+                        uuid assigned_to FK
+                        date scheduled_date
+                        jsonb specifications
+                    }
+                    
+                    RISK_ALERT {
+                        uuid id PK
+                        uuid tree_id FK
+                        string alert_type
+                        string severity
+                        jsonb weather_data
+                        jsonb risk_factors
+                        timestamp alert_time
+                        boolean acknowledged
+                    }
+                    
+                    DRONE_ASSET {
+                        uuid id PK
+                        uuid flight_id FK
+                        uuid tree_id FK
+                        string asset_type
+                        jsonb ndvi_data
+                        string storage_url
+                        jsonb metadata
+                    }
+            </div>
+            <div class="description">
+                <strong>PostGIS Enabled:</strong> The database uses PostgreSQL with PostGIS extensions for spatial queries. All location data is stored as geographic points/polygons enabling efficient spatial operations.
+            </div>
+        </div>
+
+        <h2>4. Risk Assessment Engine</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">Risk Calculation Flow</div>
+            <div class="mermaid">
+                graph TD
+                    subgraph "Input Data"
+                        TD[Tree Data<br/>Species, Age, Health]
+                        ID[Inspection Data<br/>Defects, Decay]
+                        WD[Weather Data<br/>Wind, Rain Forecast]
+                        HD[Historical Data<br/>Past Failures]
+                    end
+                    
+                    subgraph "Risk Factors"
+                        SF[Structural Factors<br/>Lean, Cracks, Cavities]
+                        HF[Health Factors<br/>Disease, Pests, Decay]
+                        EF[Environmental Factors<br/>Exposure, Soil]
+                        TF[Target Factors<br/>People, Property]
+                    end
+                    
+                    subgraph "Risk Engine"
+                        RC[Risk Calculator]
+                        ML[ML Model<br/>Pattern Recognition]
+                        TH[Threshold Analysis]
+                        WM[Weather Modifier]
+                    end
+                    
+                    subgraph "Output"
+                        RS[Risk Score<br/>0-100]
+                        RL[Risk Level<br/>Low/Med/High/Critical]
+                        RA[Recommended Actions]
+                        EZ[Exclusion Zone<br/>Buffer Calculation]
+                    end
+                    
+                    TD --> SF
+                    ID --> SF
+                    ID --> HF
+                    WD --> EF
+                    HD --> ML
+                    
+                    SF --> RC
+                    HF --> RC
+                    EF --> RC
+                    TF --> RC
+                    
+                    RC --> ML
+                    ML --> TH
+                    WD --> WM
+                    WM --> TH
+                    
+                    TH --> RS
+                    RS --> RL
+                    RL --> RA
+                    RL --> EZ
+                    
+                    classDef input fill:#4299e1,stroke:#2b6cb0,color:#fff
+                    classDef factor fill:#48bb78,stroke:#2f855a,color:#fff
+                    classDef engine fill:#ed8936,stroke:#c05621,color:#fff
+                    classDef output fill:#9f7aea,stroke:#6b46c1,color:#fff
+                    
+                    class TD,ID,WD,HD input
+                    class SF,HF,EF,TF factor
+                    class RC,ML,TH,WM engine
+                    class RS,RL,RA,EZ output
+            </div>
+            <div class="description">
+                <strong>Predictive Analytics:</strong> The risk engine combines multiple data sources including tree health, weather forecasts, and historical patterns to calculate dynamic risk scores and generate proactive alerts.
+            </div>
+        </div>
+
+        <h2>5. Integration Architecture</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">External API Integrations</div>
+            <div class="mermaid">
+                sequenceDiagram
+                    participant M as Mobile App
+                    participant B as Backend
+                    participant C as Cache
+                    participant I as iNaturalist
+                    participant P as Plant.id
+                    participant W as BOM Weather
+                    participant N as Nearmap
+                    
+                    M->>B: Species Identification Request
+                    B->>C: Check Cache
+                    alt Cache Hit
+                        C-->>B: Cached Result
+                    else Cache Miss
+                        B->>I: API Request
+                        I-->>B: Species Suggestions
+                        B->>C: Store Result
+                    end
+                    B-->>M: Species Data
+                    
+                    M->>B: Health Analysis Request
+                    B->>P: Image + Symptoms
+                    P-->>B: Disease/Pest Analysis
+                    B-->>M: Health Report
+                    
+                    loop Every Hour
+                        B->>W: Fetch Weather Forecast
+                        W-->>B: 7-Day Forecast
+                        B->>B: Update Risk Scores
+                    end
+                    
+                    Note over B,N: Web Console Only
+                    B->>N: Request Aerial Imagery
+                    N-->>B: Tile URLs
+                    B-->>M: Map Layers
+            </div>
+            <div class="description">
+                <strong>API Rate Management:</strong> All external API calls are cached and rate-limited. Weather data is fetched on a schedule, while species identification results are cached for 24 hours.
+            </div>
+        </div>
+
+        <h2>6. Deployment Architecture</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">Azure Cloud Infrastructure</div>
+            <div class="mermaid">
+                graph TB
+                    subgraph "Azure Front Door"
+                        FD[CDN + WAF<br/>Global Load Balancing]
+                    end
+                    
+                    subgraph "Azure App Service"
+                        ASP[Production Slots]
+                        ASS[Staging Slots]
+                    end
+                    
+                    subgraph "Container Registry"
+                        CR[Docker Images]
+                    end
+                    
+                    subgraph "Database Tier"
+                        PGP[PostgreSQL Primary]
+                        PGR[PostgreSQL Replica]
+                        RC[Redis Cache]
+                    end
+                    
+                    subgraph "Storage"
+                        BS[Blob Storage<br/>Media Files]
+                        FS[File Share<br/>Reports]
+                    end
+                    
+                    subgraph "Monitoring"
+                        AI[Application Insights]
+                        LA[Log Analytics]
+                        AM[Alert Manager]
+                    end
+                    
+                    subgraph "Security"
+                        KV[Key Vault<br/>Secrets]
+                        AD[Azure AD<br/>Identity]
+                    end
+                    
+                    FD --> ASP
+                    FD --> ASS
+                    CR --> ASP
+                    CR --> ASS
+                    
+                    ASP --> PGP
+                    ASP --> RC
+                    ASP --> BS
+                    ASP --> KV
+                    
+                    PGP --> PGR
+                    
+                    ASP --> AI
+                    AI --> LA
+                    LA --> AM
+                    
+                    AD --> ASP
+                    
+                    classDef azure fill:#0078d4,stroke:#005a9e,color:#fff
+                    classDef data fill:#48bb78,stroke:#2f855a,color:#fff
+                    classDef monitor fill:#ed8936,stroke:#c05621,color:#fff
+                    
+                    class FD,ASP,ASS,CR,BS,FS,KV,AD azure
+                    class PGP,PGR,RC data
+                    class AI,LA,AM monitor
+            </div>
+            <div class="description">
+                <strong>High Availability:</strong> The system is deployed on Azure with automatic scaling, redundant databases, and global CDN distribution ensuring 99.9% uptime SLA.
+            </div>
+        </div>
+
+        <h2>7. Security Architecture</h2>
+        <div class="diagram-container">
+            <div class="diagram-title">Security Layers</div>
+            <div class="mermaid">
+                graph TD
+                    subgraph "Network Security"
+                        WAF[Web Application Firewall]
+                        DDOS[DDoS Protection]
+                        NSG[Network Security Groups]
+                    end
+                    
+                    subgraph "Identity & Access"
+                        MFA[Multi-Factor Auth]
+                        RBAC[Role-Based Access]
+                        JWT[JWT Tokens]
+                        REF[Refresh Tokens]
+                    end
+                    
+                    subgraph "Application Security"
+                        IV[Input Validation]
+                        XSS[XSS Protection]
+                        CSRF[CSRF Tokens]
+                        SQL[SQL Injection Prevention]
+                    end
+                    
+                    subgraph "Data Security"
+                        TLS[TLS 1.3 in Transit]
+                        AES[AES-256 at Rest]
+                        FLD[Field Level Encryption]
+                        PII[PII Masking]
+                    end
+                    
+                    subgraph "Audit & Compliance"
+                        AL[Audit Logging]
+                        SIEM[SIEM Integration]
+                        GDPR[GDPR Compliance]
+                        ISO[ISO 27001]
+                    end
+                    
+                    WAF --> MFA
+                    MFA --> JWT
+                    JWT --> IV
+                    IV --> TLS
+                    TLS --> AL
+                    
+                    DDOS --> NSG
+                    NSG --> RBAC
+                    RBAC --> REF
+                    REF --> XSS
+                    XSS --> CSRF
+                    CSRF --> SQL
+                    SQL --> AES
+                    AES --> FLD
+                    FLD --> PII
+                    PII --> SIEM
+                    SIEM --> GDPR
+                    GDPR --> ISO
+                    
+                    classDef network fill:#e53e3e,stroke:#c53030,color:#fff
+                    classDef identity fill:#4299e1,stroke:#2b6cb0,color:#fff
+                    classDef app fill:#48bb78,stroke:#2f855a,color:#fff
+                    classDef data fill:#ed8936,stroke:#c05621,color:#fff
+                    classDef audit fill:#9f7aea,stroke:#6b46c1,color:#fff
+                    
+                    class WAF,DDOS,NSG network
+                    class MFA,RBAC,JWT,REF identity
+                    class IV,XSS,CSRF,SQL app
+                    class TLS,AES,FLD,PII data
+                    class AL,SIEM,GDPR,ISO audit
+            </div>
+        </div>
+
+        <h2>Technology Stack Summary</h2>
+        <div class="tech-stack">
+            <div class="tech-card">
+                <h3>🎨 Frontend</h3>
+                <ul>
+                    <li>React Native (Expo)</li>
+                    <li>React + Next.js</li>
+                    <li>TypeScript</li>
+                    <li>Mapbox GL JS</li>
+                    <li>Tailwind CSS</li>
+                </ul>
+            </div>
+            <div class="tech-card">
+                <h3>⚙️ Backend</h3>
+                <ul>
+                    <li>Node.js + Express</li>
+                    <li>TypeScript</li>
+                    <li>PostgreSQL + PostGIS</li>
+                    <li>Redis Cache</li>
+                    <li>BullMQ Jobs</li>
+                </ul>
+            </div>
+            <div class="tech-card">
+                <h3>☁️ Infrastructure</h3>
+                <ul>
+                    <li>Azure App Service</li>
+                    <li>Azure Blob Storage</li>
+                    <li>Azure Front Door</li>
+                    <li>GitHub Actions</li>
+                    <li>Docker Containers</li>
+                </ul>
+            </div>
+            <div class="tech-card">
+                <h3>🤖 AI/ML Services</h3>
+                <ul>
+                    <li>iNaturalist API</li>
+                    <li>Plant.id API</li>
+                    <li>Atlas Living Australia</li>
+                    <li>Custom NDVI Processing</li>
+                    <li>Risk Prediction Model</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-title">📋 Document Information</div>
+            <p><strong>Project:</strong> ArborIQ (Arbor1st)</p>
+            <p><strong>Version:</strong> 1.0</p>
+            <p><strong>Last Updated:</strong> 2025</p>
+            <p><strong>Deployment Region:</strong> Australia (Starting Mornington Peninsula)</p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#5a67d8',
+                lineColor: '#5a67d8',
+                secondaryColor: '#48bb78',
+                tertiaryColor: '#ed8936',
+                background: '#f7fafc',
+                mainBkg: '#edf2f7',
+                secondBkg: '#e2e8f0'
+            }
+        });
+    </script>
+</body>
+</html>
