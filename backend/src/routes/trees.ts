@@ -30,6 +30,31 @@ router.get('/',
   }
 );
 
+// GET /api/v1/trees/bounds - Get trees within map bounds (public)
+router.get('/bounds',
+  validateQuery(treeSchemas.boundsQuery),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { north, south, east, west } = req.query;
+      
+      const trees = await TreeModel.findInBounds(
+        Number(north),
+        Number(south),
+        Number(east),
+        Number(west)
+      );
+
+      res.json({
+        success: true,
+        count: trees.length,
+        data: trees
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/trees/nearby - Find trees near a location (public)
 router.get('/nearby', 
   validateQuery(treeSchemas.nearbyQuery),
@@ -136,6 +161,41 @@ router.put('/:id',
       };
 
       const tree = await TreeModel.update(req.params.id, updateData);
+      
+      if (!tree) {
+        res.status(404).json({
+          success: false,
+          error: 'Tree not found'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: tree
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/v1/trees/:id/location - Set tree location (authenticated)
+router.put('/:id/location',
+  authenticate,
+  authorize('arborist', 'admin', 'council_manager'),
+  validateUUID('id'),
+  validate(treeSchemas.setLocation),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { latitude, longitude } = req.body;
+      
+      const tree = await TreeModel.setLocation(
+        req.params.id, 
+        latitude, 
+        longitude,
+        req.user!.id
+      );
       
       if (!tree) {
         res.status(404).json({

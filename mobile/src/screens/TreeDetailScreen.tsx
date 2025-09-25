@@ -80,17 +80,24 @@ export default function TreeDetailScreen({ route, navigation }: any) {
         <View style={styles.row}>
           <Text style={styles.label}>Health Status:</Text>
           <Text style={[styles.value, styles.healthStatus, 
-            { color: tree.health_status === 'good' ? '#4caf50' : 
-                     tree.health_status === 'fair' ? '#ff9800' : '#f44336' }]}>
+            { color: tree.health_status === 'excellent' ? '#4caf50' :
+                     tree.health_status === 'good' ? '#8bc34a' :
+                     tree.health_status === 'fair' ? '#ff9800' :
+                     tree.health_status === 'poor' ? '#f44336' :
+                     tree.health_status === 'dead' ? '#9e9e9e' :
+                     '#666' }]}>
             {tree.health_status || 'Unknown'}
           </Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Risk Rating:</Text>
           <Text style={[styles.value, 
-            { color: tree.risk_rating > 50 ? '#f44336' : 
-                     tree.risk_rating > 25 ? '#ff9800' : '#4caf50' }]}>
-            {tree.risk_rating || 0}/100
+            { color: tree.risk_rating >= 8 ? '#f44336' :
+                     tree.risk_rating >= 6 ? '#ff9800' :
+                     tree.risk_rating >= 4 ? '#ffc107' :
+                     tree.risk_rating >= 2 ? '#8bc34a' :
+                     '#4caf50' }]}>
+            {tree.risk_rating || 0}/10
           </Text>
         </View>
       </View>

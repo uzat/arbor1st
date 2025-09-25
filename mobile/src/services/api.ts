@@ -75,6 +75,60 @@ export const treeService = {
     });
     return response.data;
   },
+  
+  // NEW METHODS FOR MAP FUNCTIONALITY:
+  
+  async setLocation(id: string, latitude: number, longitude: number) {
+    const response = await api.put(`/trees/${id}/location`, {
+      latitude,
+      longitude
+    });
+    return response.data;
+  },
+  
+  async getInBounds(bounds: { north: number; south: number; east: number; west: number }) {
+    const response = await api.get('/trees/bounds', {
+      params: bounds
+    });
+    return response.data;
+  },
+  
+  async getHighRisk(minRating: number = 70) {
+    const response = await api.get('/trees/high-risk', {
+      params: { min_rating: minRating }
+    });
+    return response.data;
+  },
+};
+
+// Auth services
+export const authService = {
+  async login(email: string, password: string) {
+    const response = await api.post('/auth/login', { email, password });
+    
+    if (response.data.success && response.data.data.token) {
+      await AsyncStorage.setItem('authToken', response.data.data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.data.user));
+    }
+    
+    return response.data;
+  },
+  
+  async register(userData: any) {
+    const response = await api.post('/auth/register', userData);
+    
+    if (response.data.success && response.data.data.token) {
+      await AsyncStorage.setItem('authToken', response.data.data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.data.user));
+    }
+    
+    return response.data;
+  },
+  
+  async logout() {
+    await AsyncStorage.removeItem('authToken');
+    await AsyncStorage.removeItem('user');
+  },
 };
 
 export default api;

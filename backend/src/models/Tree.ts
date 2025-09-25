@@ -167,6 +167,60 @@ class TreeModel {
       .whereNull('deleted_at')
       .orderBy('risk_rating', 'desc');
   }
+
+  // Find trees within map bounds
+  async findInBounds(north: number, south: number, east: number, west: number): Promise<Tree[]> {
+    const trees = await db(this.table)
+      .select('*',
+        db.raw('ST_X(location::geometry) as longitude'),
+        db.raw('ST_Y(location::geometry) as latitude')
+      )
+      .whereNull('deleted_at')
+      .whereRaw(
+        `location && ST_MakeEnvelope(?, ?, ?, ?, 4326)`,
+        [west, south, east, north]
+      );
+
+    return trees;
+  }
+
+  // Set location for a specific tree
+  async setLocation(id: string, latitude: number, longitude: number, userId: string): Promise<Tree | null> {
+    const [tree] = await db(this.table)
+      .where({ id })
+      .whereNull('deleted_at')
+      .update({
+        location: db.raw('ST_SetSRID(ST_MakePoint(?, ?), 4326)', [longitude, latitude]),
+        updated_at: new Date(),
+        updated_by: userId,
+      })
+      .returning([
+        '*',
+        db.raw('ST_X(location::geometry) as longitude'),
+        db.raw('ST_Y(location::geometry) as latitude')
+      ]);
+
+    return tree || null;
+  }
+
+  // Get trees with images count (for future use)
+  async findAllWithImageCount(): Promise<any[]> {
+    return db(this.table)
+      .select(
+        'trees.*',
+        db.raw('ST_X(location::geometry) as longitude'),
+        db.raw('ST_Y(location::geometry) as latitude'),
+        db.raw('COUNT(DISTINCT media.id) as image_count')
+      )
+      .leftJoin('media', function() {
+        this.on('media.tree_id', '=', 'trees.id')
+            .andOn('media.media_type', '=', db.raw('?', ['image']))
+            .andOn(db.raw('media.deleted_at IS NULL'));
+      })
+      .whereNull('trees.deleted_at')
+      .groupBy('trees.id')
+      .orderBy('trees.created_at', 'desc');
+  }
 }
 
 export default new TreeModel();

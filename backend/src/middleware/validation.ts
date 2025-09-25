@@ -68,10 +68,22 @@ export const treeSchemas = {
     zone_id: Joi.string().uuid().optional().allow(null)
   }).min(1), // At least one field required for update
 
+  setLocation: Joi.object({
+    latitude: Joi.number().min(-90).max(90).required(),
+    longitude: Joi.number().min(-180).max(180).required(),
+  }),
+
   nearbyQuery: Joi.object({
     lat: Joi.number().min(-90).max(90).required(),
     lng: Joi.number().min(-180).max(180).required(),
     radius: Joi.number().min(1).max(50000).default(100)
+  }),
+
+  boundsQuery: Joi.object({
+    north: Joi.number().min(-90).max(90).required(),
+    south: Joi.number().min(-90).max(90).required(),
+    east: Joi.number().min(-180).max(180).required(),
+    west: Joi.number().min(-180).max(180).required(),
   }),
 
   listQuery: Joi.object({
