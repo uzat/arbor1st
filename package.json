@@ -7,10 +7,5 @@
     "docker:down": "bash infrastructure/scripts/docker-down.sh",
     "docker:reset": "docker-compose down -v && docker-compose up -d",
     "db:test": "node test-db-connection.js"
-  },
-  "dependencies": {
-    "express-validator": "^7.2.1",
-    "joi": "^18.0.1",
-    "pg": "^8.11.3"
   }
 }
