@@ -10,16 +10,16 @@ import {
   Platform,
   ActivityIndicator
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
-// Use the same base URL as your API service
 const API_BASE_URL = 'http://192.168.1.13:3000/api/v1';
 
-export default function LoginScreen({ navigation }: any) {
+export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -35,12 +35,9 @@ export default function LoginScreen({ navigation }: any) {
       });
 
       if (response.data.success) {
-        // Store the token and user data
-        await AsyncStorage.setItem('authToken', response.data.data.token);
-        await AsyncStorage.setItem('user', JSON.stringify(response.data.data.user));
-        
-        // Navigate to main screen
-        navigation.replace('Main');
+        // Use the auth context login function
+        await login(response.data.data.token, response.data.data.user);
+        // No navigation needed - App.tsx will automatically switch screens
       }
     } catch (error: any) {
       console.error('Login error:', error);

@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+// Auth Context
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 // Import screens
 import TreeListScreen from './src/screens/TreeListScreen';
@@ -21,11 +23,11 @@ const Tab = createBottomTabNavigator();
 const queryClient = new QueryClient();
 
 // Profile/Settings Screen
-function ProfileScreen({ navigation }: any) {
+function ProfileScreen() {
+  const { logout } = useAuth();
+
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('authToken');
-    await AsyncStorage.removeItem('user');
-    navigation.replace('Auth');
+    await logout();
   };
 
   return (
@@ -209,23 +211,11 @@ function AppStack() {
   );
 }
 
-export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+// Navigation wrapper that uses auth context
+function AppNavigator() {
+  const { isAuthenticated, isLoading } = useAuth();
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      setIsAuthenticated(!!token);
-    } catch (error) {
-      setIsAuthenticated(false);
-    }
-  };
-
-  if (isAuthenticated === null) {
+  if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5' }}>
         <ActivityIndicator size="large" color="#2e7d32" />
@@ -235,18 +225,26 @@ export default function App() {
   }
 
   return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isAuthenticated ? (
+          <Stack.Screen name="App" component={AppStack} />
+        ) : (
+          <Stack.Screen name="Auth" component={AuthStack} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {isAuthenticated ? (
-              <Stack.Screen name="App" component={AppStack} />
-            ) : (
-              <Stack.Screen name="Auth" component={AuthStack} />
-            )}
-          </Stack.Navigator>
+        <AuthProvider>
+          <AppNavigator />
           <StatusBar style="auto" />
-        </NavigationContainer>
+        </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

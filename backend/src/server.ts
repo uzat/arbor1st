@@ -15,7 +15,7 @@ import authRoutes from './routes/auth';
 
 // Create Express app
 const app: Application = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);  // <-- Parse to number
 
 // Middleware
 app.use(helmet());
@@ -74,9 +74,10 @@ app.use((req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {  // <-- ADD '0.0.0.0' here
   console.log(`🌳 ArborIQ API running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
+  console.log(`🔗 Health check: http://0.0.0.0:${PORT}/health`);
+  console.log(`🔐 Auth endpoints: http://0.0.0.0:${PORT}/api/v1/auth`);
+  console.log(`📱 Mobile access: http://192.168.1.13:${PORT}/api/v1`);
 });

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, Region, MapPressEvent } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { treeService } from '../services/api';
+import { styles } from './MapScreen.styles';
 
 interface Tree {
   id: string;
@@ -16,6 +17,13 @@ interface Tree {
   longitude?: number;
 }
 
+interface Bounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 export default function MapScreen({ navigation, route }: any) {
   const mapRef = useRef<MapView>(null);
   const queryClient = useQueryClient();
@@ -24,16 +32,19 @@ export default function MapScreen({ navigation, route }: any) {
   const centerOnLocation = route?.params?.centerOnLocation;
   
   const [region, setRegion] = useState<Region>({
-    latitude: centerOnLocation?.latitude || -38.1499,  // Use passed location or default
+    latitude: centerOnLocation?.latitude || -38.1499,
     longitude: centerOnLocation?.longitude || 145.1211,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
   
+  const [currentBounds, setCurrentBounds] = useState<Bounds | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [allTrees, setAllTrees] = useState<Tree[]>([]);
+  const [visibleTrees, setVisibleTrees] = useState<Tree[]>([]);
 
   // Center map on the new location when navigating from add tree
   useEffect(() => {
@@ -52,22 +63,80 @@ export default function MapScreen({ navigation, route }: any) {
     }
   }, [centerOnLocation]);
 
-  // Fetch trees in current map bounds
-  const { data: trees, isLoading, refetch } = useQuery({
-    queryKey: ['trees-map', region],
+  // Calculate bounds from region
+  const calculateBounds = useCallback((region: Region): Bounds => {
+    return {
+      north: region.latitude + region.latitudeDelta / 2,
+      south: region.latitude - region.latitudeDelta / 2,
+      east: region.longitude + region.longitudeDelta / 2,
+      west: region.longitude - region.longitudeDelta / 2,
+    };
+  }, []);
+
+  // Check if tree is within bounds - with small buffer for edge cases
+  const isTreeInBounds = useCallback((tree: Tree, bounds: Bounds): boolean => {
+    if (!tree.latitude || !tree.longitude) return false;
+    
+    // Add a small buffer (0.0001 degrees ≈ 11 meters) to prevent edge case issues
+    const buffer = 0.0001;
+    return (
+      tree.latitude >= bounds.south - buffer &&
+      tree.latitude <= bounds.north + buffer &&
+      tree.longitude >= bounds.west - buffer &&
+      tree.longitude <= bounds.east + buffer
+    );
+  }, []);
+
+  // Fetch ALL trees once (or when explicitly refetched)
+  const { data: fetchedTrees, isLoading, refetch } = useQuery({
+    queryKey: ['trees-map-all'], // Fixed key - no region dependency
     queryFn: async () => {
-      const bounds = {
-        north: region.latitude + region.latitudeDelta / 2,
-        south: region.latitude - region.latitudeDelta / 2,
-        east: region.longitude + region.longitudeDelta / 2,
-        west: region.longitude - region.longitudeDelta / 2,
-      };
-      
-      const response = await treeService.getInBounds(bounds);
+      // Fetch a larger area or all trees
+      // Option 1: Fetch all trees (if reasonable number)
+      const response = await treeService.getAll();
       return response.data || [];
+      
+      // Option 2: If too many trees, fetch a larger fixed area
+      // const largeBounds = {
+      //   north: -37.5,
+      //   south: -39.0,
+      //   east: 146.0,
+      //   west: 144.5,
+      // };
+      // const response = await treeService.getInBounds(largeBounds);
+      // return response.data || [];
     },
-    enabled: true,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes (v5 uses gcTime instead of cacheTime)
   });
+
+  // Update allTrees when data is fetched
+  useEffect(() => {
+    if (fetchedTrees && Array.isArray(fetchedTrees)) {
+      setAllTrees(fetchedTrees);
+    }
+  }, [fetchedTrees]);
+
+  // Filter visible trees based on current bounds
+  useEffect(() => {
+    if (currentBounds && allTrees.length > 0) {
+      const treesInView = allTrees.filter(tree => isTreeInBounds(tree, currentBounds));
+      setVisibleTrees(treesInView);
+      
+      // Debug logging - remove after fixing
+      console.log('Bounds:', currentBounds);
+      console.log('Total trees:', allTrees.length);
+      console.log('Visible trees:', treesInView.length);
+      if (allTrees.length !== treesInView.length) {
+        const hiddenTrees = allTrees.filter(tree => !isTreeInBounds(tree, currentBounds));
+        hiddenTrees.forEach(tree => {
+          if (tree.latitude && tree.longitude) {
+            console.log(`Hidden tree ${tree.id}: ${tree.latitude}, ${tree.longitude}`);
+          }
+        });
+      }
+    }
+  }, [currentBounds, allTrees, isTreeInBounds]);
 
   // Get user location on mount
   useEffect(() => {
@@ -86,13 +155,15 @@ export default function MapScreen({ navigation, route }: any) {
       setUserLocation(userLoc);
       
       // Center map on user location
-      setRegion({
+      const newRegion = {
         ...userLoc,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
-      });
+      };
+      setRegion(newRegion);
+      setCurrentBounds(calculateBounds(newRegion));
     })();
-  }, []);
+  }, [calculateBounds]);
 
   // Handle map press to add tree
   const handleMapPress = (event: MapPressEvent) => {
@@ -118,6 +189,8 @@ export default function MapScreen({ navigation, route }: any) {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
+      setRegion(newRegion);
+      setCurrentBounds(calculateBounds(newRegion));
     } catch (error) {
       Alert.alert('Error', 'Could not get current location');
     } finally {
@@ -125,9 +198,10 @@ export default function MapScreen({ navigation, route }: any) {
     }
   };
 
-  // Handle region change
+  // Handle region change - just update bounds for filtering
   const handleRegionChangeComplete = (newRegion: Region) => {
     setRegion(newRegion);
+    setCurrentBounds(calculateBounds(newRegion));
   };
 
   // Get marker color based on health/risk
@@ -143,13 +217,19 @@ export default function MapScreen({ navigation, route }: any) {
   const handleAddTreeAtLocation = () => {
     setShowAddModal(false);
     if (selectedLocation) {
-      // Navigate to the stack screen, not the tab
       navigation.navigate('AddTreeFromMap', {
         latitude: selectedLocation.latitude,
         longitude: selectedLocation.longitude,
         returnTo: 'Map'
       });
     }
+  };
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    // Invalidate and refetch - v5 syntax
+    await queryClient.invalidateQueries({ queryKey: ['trees-map-all'] });
+    refetch();
   };
 
   return (
@@ -165,8 +245,8 @@ export default function MapScreen({ navigation, route }: any) {
         showsMyLocationButton={false}
         showsCompass={true}
       >
-        {/* Tree markers */}
-        {trees?.map((tree: Tree) => 
+        {/* Tree markers - use visibleTrees for performance */}
+        {visibleTrees.map((tree: Tree) => 
           tree.latitude && tree.longitude ? (
             <Marker
               key={tree.id}
@@ -178,6 +258,7 @@ export default function MapScreen({ navigation, route }: any) {
               description={`Health: ${tree.health_status || 'Unknown'} | Risk: ${tree.risk_rating || 0}`}
               pinColor={getMarkerColor(tree)}
               onCalloutPress={() => navigation.navigate('TreeDetail', { treeId: tree.id })}
+              tracksViewChanges={false} // Performance optimization
             />
           ) : null
         )}
@@ -195,10 +276,10 @@ export default function MapScreen({ navigation, route }: any) {
 
       {/* Map controls */}
       <View style={styles.controls}>
-        {/* Tree count */}
+        {/* Tree count - now shows both visible and total */}
         <View style={styles.treeCount}>
           <Text style={styles.treeCountText}>
-            {isLoading ? 'Loading...' : `${trees?.length || 0} trees in view`}
+            {isLoading ? 'Loading...' : `${visibleTrees.length} trees in view (${allTrees.length} total)`}
           </Text>
         </View>
 
@@ -218,7 +299,7 @@ export default function MapScreen({ navigation, route }: any) {
         {/* Refresh button */}
         <TouchableOpacity
           style={styles.refreshButton}
-          onPress={() => refetch()}
+          onPress={handleRefresh}
         >
           <Ionicons name="refresh" size={24} color="#fff" />
         </TouchableOpacity>
@@ -264,118 +345,3 @@ export default function MapScreen({ navigation, route }: any) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    flex: 1,
-  },
-  controls: {
-    position: 'absolute',
-    right: 16,
-    top: 50,
-    gap: 10,
-  },
-  locationButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#2e7d32',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-  },
-  refreshButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#2196f3',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-  },
-  treeCount: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    elevation: 3,
-  },
-  treeCountText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  instructions: {
-    position: 'absolute',
-    bottom: 30,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(46, 125, 50, 0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  instructionText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  modalText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#e0e0e0',
-  },
-  addButton: {
-    backgroundColor: '#2e7d32',
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  addButtonText: {
-    color: '#fff',
-  },
-});
