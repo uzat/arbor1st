@@ -5,19 +5,22 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AxiosError } from 'axios';
 import * as Location from 'expo-location';
 import { treeService } from '../services/api';
+import { CameraService } from '../services/camera.service';
+import { styles } from './AddTreeScreen.styles';
 
 // Navigation types
 type RootStackParamList = {
@@ -31,6 +34,14 @@ type RootStackParamList = {
 type AddTreeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type AddTreeScreenRouteProp = RouteProp<RootStackParamList, 'AddTree'> | RouteProp<RootStackParamList, 'AddTreeFromMap'>;
 
+// Simulated progressive identification (will be replaced with real API)
+interface IdentificationProgress {
+  level: 'kingdom' | 'class' | 'order' | 'family' | 'genus' | 'species';
+  name: string;
+  commonName?: string;
+  confidence: number;
+}
+
 export default function AddTreeScreen() {
   const navigation = useNavigation<AddTreeScreenNavigationProp>();
   const route = useRoute<AddTreeScreenRouteProp>();
@@ -40,10 +51,8 @@ export default function AddTreeScreen() {
   
   if (route.params) {
     if ('location' in route.params && route.params.location) {
-      // Coming from AddTree route with optional location
       paramLocation = route.params.location;
     } else if ('latitude' in route.params && 'longitude' in route.params) {
-      // Coming from AddTreeFromMap route with direct coordinates
       paramLocation = {
         latitude: route.params.latitude,
         longitude: route.params.longitude,
@@ -51,6 +60,7 @@ export default function AddTreeScreen() {
     }
   }
   
+  // Form state
   const [species, setSpecies] = useState('');
   const [cultivar, setCultivar] = useState('');
   const [height, setHeight] = useState('');
@@ -61,6 +71,11 @@ export default function AddTreeScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTreeId, setCreatedTreeId] = useState<string | null>(null);
+  
+  // Camera state
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
+  const [identificationProgress, setIdentificationProgress] = useState<IdentificationProgress[]>([]);
 
   // Update location when params change
   useEffect(() => {
@@ -68,6 +83,83 @@ export default function AddTreeScreen() {
       setLocation(paramLocation);
     }
   }, []);
+
+  const handleTakePhoto = async () => {
+    const result = await CameraService.takePhoto(true); // Include base64 for identification
+    if (result) {
+      setPhotoUri(result.uri);
+      setIdentificationProgress([]); // Clear any previous identification
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    const result = await CameraService.pickPhoto(true); // Include base64 for identification
+    if (result) {
+      setPhotoUri(result.uri);
+      setIdentificationProgress([]); // Clear any previous identification
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoUri(null);
+    setIdentificationProgress([]);
+  };
+
+  const handleIdentifySpecies = async () => {
+    if (!photoUri) return;
+    
+    setIdentifying(true);
+    setIdentificationProgress([]);
+    
+    // Simulate progressive identification
+    // In real implementation, this will call actual APIs
+    try {
+      // Simulate API calls with delays
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIdentificationProgress([
+        { level: 'kingdom', name: 'Plantae', confidence: 100 }
+      ]);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIdentificationProgress(prev => [...prev,
+        { level: 'class', name: 'Magnoliopsida', commonName: 'Flowering plants', confidence: 95 }
+      ]);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIdentificationProgress(prev => [...prev,
+        { level: 'family', name: 'Myrtaceae', commonName: 'Myrtle family', confidence: 87 }
+      ]);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIdentificationProgress(prev => [...prev,
+        { level: 'genus', name: 'Eucalyptus', confidence: 82 }
+      ]);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIdentificationProgress(prev => [...prev,
+        { level: 'species', name: 'Eucalyptus camaldulensis', commonName: 'River Red Gum', confidence: 78 }
+      ]);
+      
+      // If offline, queue for later
+      if (!navigator.onLine) {
+        await CameraService.queueIdentification(photoUri, location || undefined);
+        Alert.alert('Queued', 'Species identification will complete when online');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to identify species');
+    } finally {
+      setIdentifying(false);
+    }
+  };
+
+  const acceptIdentification = (progress: IdentificationProgress) => {
+    if (progress.level === 'species' || progress.level === 'genus') {
+      setSpecies(progress.name);
+      if (progress.commonName) {
+        setCultivar(progress.commonName);
+      }
+    }
+  };
 
   const validateForm = () => {
     if (!species.trim()) {
@@ -109,14 +201,18 @@ export default function AddTreeScreen() {
 
       const response = await treeService.create(treeData);
       
-      // Fix: response.data.id instead of response.id
       setCreatedTreeId(response.data.id);
+      
+      // TODO: Upload photo if exists
+      // if (photoUri && response.data.id) {
+      //   await treeService.uploadPhoto(response.data.id, photoUri);
+      // }
+      
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error creating tree:', error);
       const axiosError = error as AxiosError<{ message?: string; error?: string }>;
       
-      // Check if it's an auth error
       if (axiosError.response?.status === 401) {
         Alert.alert(
           'Session Expired',
@@ -146,7 +242,6 @@ export default function AddTreeScreen() {
         }
         break;
       case 'map':
-        // Navigate to Map tab
         navigation.navigate('Map');
         break;
       case 'another':
@@ -157,14 +252,14 @@ export default function AddTreeScreen() {
         setDbh('');
         setHealthStatus('good');
         setNotes('');
+        setPhotoUri(null);
+        setIdentificationProgress([]);
         setCreatedTreeId(null);
-        // Keep location if it was from map
         if (!paramLocation) {
           setLocation(null);
         }
         break;
       case 'list':
-        // Navigate to Trees tab
         navigation.navigate('Trees');
         break;
     }
@@ -186,6 +281,91 @@ export default function AddTreeScreen() {
         </View>
 
         <View style={styles.form}>
+          {/* Photo Section */}
+          <View style={styles.photoSection}>
+            <Text style={styles.sectionTitle}>Tree Photo</Text>
+            
+            {!photoUri ? (
+              <View style={styles.photoButtons}>
+                <TouchableOpacity
+                  style={styles.photoButton}
+                  onPress={handleTakePhoto}
+                >
+                  <MaterialIcons name="camera-alt" size={20} color="#fff" />
+                  <Text style={styles.photoButtonText}>Take Photo</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.photoButton}
+                  onPress={handlePickPhoto}
+                >
+                  <MaterialIcons name="photo-library" size={20} color="#fff" />
+                  <Text style={styles.photoButtonText}>Gallery</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.photoPreview}>
+                <Image source={{ uri: photoUri }} style={styles.photo} />
+                <View style={styles.photoActions}>
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={handleRemovePhoto}
+                  >
+                    <Text style={styles.primaryButtonText}>Remove</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.identifyButton}
+                    onPress={handleIdentifySpecies}
+                    disabled={identifying}
+                  >
+                    {identifying ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="leaf" size={16} color="#fff" />
+                        <Text style={styles.identifyButtonText}>Identify Species</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Progressive Identification Display */}
+                {identificationProgress.length > 0 && (
+                  <View style={styles.identificationProgress}>
+                    <Text style={styles.progressTitle}>
+                      {identifying ? 'Identifying...' : 'Identification Results'}
+                    </Text>
+                    {identificationProgress.map((item, index) => (
+                      <View key={index} style={styles.progressItem}>
+                        <Ionicons 
+                          name={item.level === 'species' ? 'checkmark-circle' : 'arrow-forward'} 
+                          size={16} 
+                          color={item.level === 'species' ? '#10b981' : '#6366f1'}
+                          style={styles.progressIcon}
+                        />
+                        <Text style={styles.progressText}>
+                          {item.commonName ? `${item.commonName} (${item.name})` : item.name}
+                        </Text>
+                        <Text style={styles.confidenceText}>
+                          {item.confidence}%
+                        </Text>
+                        {(item.level === 'species' || item.level === 'genus') && (
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() => acceptIdentification(item)}
+                          >
+                            <Text style={styles.acceptButtonText}>Use</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
           {/* Species Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Species (Scientific Name) *</Text>
@@ -272,20 +452,17 @@ export default function AddTreeScreen() {
               style={styles.locationButton}
               onPress={async () => {
                 try {
-                  // Request permissions
                   let { status } = await Location.requestForegroundPermissionsAsync();
                   if (status !== 'granted') {
                     Alert.alert('Permission Denied', 'Location permission is required');
                     return;
                   }
 
-                  // Get current location
                   Alert.alert('Getting Location', 'Fetching your current position...');
                   const currentLocation = await Location.getCurrentPositionAsync({
                     accuracy: Location.Accuracy.High,
                   });
 
-                  // Update form
                   setLocation({
                     latitude: currentLocation.coords.latitude,
                     longitude: currentLocation.coords.longitude,
@@ -381,190 +558,3 @@ export default function AddTreeScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginLeft: 12,
-    color: '#1f2937',
-  },
-  form: {
-    padding: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#374151',
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: 12,
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  flex1: {
-    flex: 1,
-  },
-  ml10: {
-    marginLeft: 10,
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  picker: {
-    height: Platform.OS === 'ios' ? 150 : 50,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#374151',
-  },
-  locationIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  locationText: {
-    marginLeft: 8,
-    color: '#065f46',
-    fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  locationButton: {
-    backgroundColor: '#3b82f6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
-  },
-  locationButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  submitButton: {
-    backgroundColor: '#10b981',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    width: '85%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
-    color: '#1f2937',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  modalButtons: {
-    width: '100%',
-  },
-  modalButton: {
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#10b981',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  secondaryButtonText: {
-    color: '#374151',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  textButton: {
-    backgroundColor: 'transparent',
-  },
-  textButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-  },
-});
